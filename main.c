@@ -39,16 +39,6 @@
  */
 #include "rogueutil.h"
 
-// Type to store data about different spaces on the board.
-typedef enum {
-	BALL = 'o',
-	PADDLE = MAGENTA, // WHITE color code will represent the paddle
-	RED_BLOCK = RED, // WHITE color code will represent the paddle
-	BLUE_BLOCK = BLUE,
-	GREEN_BLOCK = GREEN,
-	EMPTY = 0, // A tile not occupied by the ball, paddle, or a block
-} Tile;
- 
 // Type to store data about the location of the paddle on the play field.
 typedef struct {
 	// Coordinates of the left-most character in the paddle.
@@ -61,6 +51,17 @@ typedef struct {
 	// The last direction the paddle was moving before it was frozen.
 	int lastDirection;
 } Paddle;
+
+// Type to store data about different spaces on the board.
+typedef enum {
+	BALL = 'o',
+	PADDLE = MAGENTA, // WHITE color code will represent the paddle
+	RED_BLOCK = RED, // WHITE color code will represent the paddle
+	BLUE_BLOCK = BLUE,
+	GREEN_BLOCK = GREEN,
+	EMPTY = 0, // A tile not occupied by the ball, paddle, or a block
+} Tile;
+ 
 
 // Strings for the header at the top of the game board.
 const char *TITLE = "ASCII BREAKOUT";
