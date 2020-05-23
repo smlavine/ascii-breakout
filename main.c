@@ -50,11 +50,16 @@ typedef enum {
 } Tile;
  
 // Type to store data about the location of the paddle on the play field.
-// Coordinates refer to the left-most character of the paddle.
 typedef struct {
+	// Coordinates of the left-most character in the paddle.
 	int x;
 	int y;
+	// Length of the paddle.
 	int len;
+	// Direction the paddle is moving - negative for left, positive for right.
+	int direction;
+	// The last direction the paddle was moving before it was frozen.
+	int lastDirection;
 } Paddle;
 
 // Strings for the header at the top of the game board.
@@ -80,7 +85,7 @@ void generateBoard(const int level, Paddle paddle);
 void initializeGraphics(const int level, const int score, const int lives);
 int max(int a, int b);
 int min(int a, int b);
-void movePaddle(Paddle *paddle, int offset);
+void movePaddle(Paddle *paddle);
 int play(int level, int *score, int *lives);
 void updateTile(int x, int y);
 
@@ -225,17 +230,15 @@ min(int a, int b)
 	return a < b ? a : b;
 }
 
-// Updates the paddle's location, moving it by offset. A negative value
-// indicates a move to the left; positive to the right. The paddle is bounded
-// by the playfield, and will stay entirely within it.
+// Move the paddle in its direction.
 void
-movePaddle(Paddle *paddle, int offset)
+movePaddle(Paddle *paddle)
 {
 	// The x-coordinate (in board) of which tiles are going to be changed.
 	int newPaddleX, newEmptyX; 
 
-	if (offset < 0 && (*paddle).x + offset >= 0) {
-		for (int i = 0; i > offset; i--) {
+	if ((*paddle).direction < 0 && (*paddle).x + (*paddle).direction >= 0) {
+		for (int i = 0; i > (*paddle).direction; i--) {
 			newPaddleX = (*paddle).x - 1;
 			newEmptyX = (*paddle).x + (*paddle).len - 1;
 			board[newPaddleX][(*paddle).y] = PADDLE;
@@ -244,8 +247,9 @@ movePaddle(Paddle *paddle, int offset)
 			updateTile(newEmptyX, (*paddle).y);
 			(*paddle).x--;
 		}
-	} else if (offset > 0 && (*paddle).x + (*paddle).len + offset <= WIDTH) {
-		for (int i = 0; i < offset; i++) {
+	} else if ((*paddle).direction > 0
+			&& (*paddle).x + (*paddle).len + (*paddle).direction <= WIDTH) {
+		for (int i = 0; i < (*paddle).direction; i++) {
 			newPaddleX = (*paddle).x + (*paddle).len;
 			newEmptyX = (*paddle).x;
 			board[newPaddleX][(*paddle).y] = PADDLE;
@@ -270,6 +274,8 @@ play(int level, int *score, int *lives)
 	paddle.len = max(20 - (2 * (level / 4)), 10);
 	paddle.x = (WIDTH - paddle.len) / 2;
 	paddle.y = (11 * HEIGHT / 12) + 1;
+	paddle.direction = 0;
+	paddle.lastDirection = 0;
 
 	// Give the player an extra life every few levels, with the amount of
 	// levels in between extra lives increasing as the game goes on. Levels with
@@ -286,14 +292,39 @@ play(int level, int *score, int *lives)
 	initializeGraphics(level, *score, *lives);
 
 	// MAIN GAME LOOP
-	int ch; // input chraacter	
 	for (;;) {
-		ch = nb_getch();
-		if (ch == 'j') { // go left
-			movePaddle(&paddle, -1);
-		} else if (ch == 'k') { // go right
-			movePaddle(&paddle, 1);
+		// Controls how fast the paddle will move.
+		msleep(30);
+		// There is no default case because I want the paddle to continue to
+		// move even if there is no input.
+		switch (nb_getch()) {
+		case 'j': // move the paddle left
+			paddle.direction = -1;
+			paddle.lastDirection = 0;
+			break;
+		case 'k': // move the paddle right
+			paddle.direction = 1;
+			paddle.lastDirection = 0;
+			break;
+		case 'f': // freeze/unfreeze the paddle in its place
+			if (paddle.lastDirection == 0) { // freeze
+				paddle.lastDirection = paddle.direction;
+				paddle.direction = 0;
+			} else {
+				paddle.direction = paddle.lastDirection;
+				paddle.lastDirection = 0;
+			}
 		}
+
+		if (paddle.direction != 0) {
+			movePaddle(&paddle);
+		}
+
+		// I move the cursor out of the way so that inputs that are not
+		// caught by nb_getch) are not in the way of the play field.
+		//locate(WIDTH + 3, HEIGHT + 3);
+		locate(1000, 1000);
+		fflush(stdout);
 	}
 
 	locate(1, HEIGHT + 2); // Locate outside of the game board
