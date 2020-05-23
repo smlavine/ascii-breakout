@@ -80,7 +80,7 @@ const int HEADER_XPOS = 4;
 Tile board[WIDTH][HEIGHT];
 
 void bar(int x, int y, int len, char c);
-void draw_tile(int x, int y, Tile t);
+void drawTile(int x, int y, Tile t);
 void generateBoard(const int level, Paddle paddle);
 void initializeGraphics(const int level, const int score, const int lives);
 int max(int a, int b);
@@ -102,7 +102,7 @@ bar(int x, int y, int len, char c)
 // Draws at (x, y) the proper value depending on the tile, including the proper
 // color. Does not reset colors after usage.
 void
-draw_tile(int x, int y, Tile t)
+drawTile(int x, int y, Tile t)
 {
 	// alternates the character drawn for bricks
 	static int alternateBrickChar = 1;
@@ -210,7 +210,7 @@ initializeGraphics(const int level, const int score, const int lives)
 	// This makes it easier to produce the two-character wide brick effect.
 	for (int i = 0; i < HEIGHT; i++) {
 		for (int j = 0; j < WIDTH; j++) {
-			draw_tile(j + 2, i + 2, board[j][i]);
+			drawTile(j + 2, i + 2, board[j][i]);
 		}
 	}
 	fflush(stdout);
@@ -298,14 +298,6 @@ play(int level, int *score, int *lives)
 		// There is no default case because I want the paddle to continue to
 		// move even if there is no input.
 		switch (nb_getch()) {
-		case 'j': // move the paddle left
-			paddle.direction = -1;
-			paddle.lastDirection = 0;
-			break;
-		case 'k': // move the paddle right
-			paddle.direction = 1;
-			paddle.lastDirection = 0;
-			break;
 		case 'f': // freeze/unfreeze the paddle in its place
 			if (paddle.lastDirection == 0) { // freeze
 				paddle.lastDirection = paddle.direction;
@@ -314,6 +306,21 @@ play(int level, int *score, int *lives)
 				paddle.direction = paddle.lastDirection;
 				paddle.lastDirection = 0;
 			}
+			break;
+		case 'j': // move the paddle left
+			paddle.direction = -1;
+			paddle.lastDirection = 0;
+			break;
+		case 'k': // move the paddle right
+			paddle.direction = 1;
+			paddle.lastDirection = 0;
+			break;
+		case 'q': // quits the game.
+			return 0;
+			break;
+		case 'r': // redraw the screen. doesn't control the paddle.
+			initializeGraphics(level, *score, *lives);
+			break;
 		}
 
 		if (paddle.direction != 0) {
@@ -342,7 +349,7 @@ void
 updateTile(int x, int y)
 {
 	locate(x + 2, y + 2);
-	draw_tile(x + 2, y + 2, board[x][y]);
+	drawTile(x + 2, y + 2, board[x][y]);
 }
 
 int
@@ -362,6 +369,7 @@ main(int argc, char *argv[])
 
 	setCursorVisibility(1);
 	resetColor();
-	puts("\n\n\nGAME OVER");
+	locate(1, HEIGHT + 2);
+	puts("\nGAME OVER");
 }
 
