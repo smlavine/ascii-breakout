@@ -27,6 +27,8 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 /* Rogueutil is a small library which provides simple color and cursor
  * manipulation functions for TUI programs. I am using it to make it easier to
@@ -37,12 +39,50 @@
  */
 #include "rogueutil.h"
 
-// Title of the game.
+// Type to store data about different spaces on the board.
+typedef enum {
+	BALL = 'o',
+	PADDLE = MAGENTA, // WHITE color code will represent the paddle
+	RED_BLOCK = RED, // WHITE color code will represent the paddle
+	BLUE_BLOCK = BLUE,
+	GREEN_BLOCK = GREEN,
+	EMPTY = 0, // A tile not occupied by the ball, paddle, or a block
+} Tile;
+ 
+// Type to store data about the location of the paddle on the play field.
+// Coordinates refer to the left-most character of the paddle.
+typedef struct {
+	int x;
+	int y;
+	int len;
+} Paddle;
+
+// Strings for the header at the top of the game board.
 const char *TITLE = "ASCII BREAKOUT";
+const char *LIVES_HEADER = "<3:";
+const char *LEVEL_HEADER = "Level:";
+const char *SCORE_HEADER = "Score:";
+const int INBETWEEN = 5;
+const int HEADER_XPOS = 4;
 
 // Dimensions of the play field.
-const int WIDTH = 60;
-const int HEIGHT = 36;
+// I used #define instead of const int for these so that I can declare board
+// (see below) at file scope.
+#define WIDTH 60
+#define HEIGHT 36
+
+// 2D array representing the play field. Reset after each level.
+Tile board[WIDTH][HEIGHT];
+
+void bar(int x, int y, int len, char c);
+void draw_tile(int x, int y, Tile t);
+void generateBoard(const int level, Paddle paddle);
+void initializeGraphics(const int level, const int score, const int lives);
+int max(int a, int b);
+int min(int a, int b);
+void movePaddle(Paddle *paddle, int offset);
+int play(int level, int *score, int *lives);
+void updateTile(int x, int y);
 
 // Draws a horizontal bar across the screen.
 void
@@ -54,11 +94,183 @@ bar(int x, int y, int len, char c)
 	}
 }
 
+// Draws at (x, y) the proper value depending on the tile, including the proper
+// color. Does not reset colors after usage.
+void
+draw_tile(int x, int y, Tile t)
+{
+	// alternates the character drawn for bricks
+	static int alternateBrickChar = 1;
+	resetColor();
+	locate(x, y);
+	switch (t) {
+	case BALL:
+		setChar(t);
+		break;
+	case PADDLE:
+		setBackgroundColor(t);
+		setChar(' ');
+		break;
+	case RED_BLOCK:
+	case BLUE_BLOCK:
+	case GREEN_BLOCK:
+		setBackgroundColor(t);
+		setColor(BLACK);
+		// This helps show the player that bricks are two characters wide.
+		setChar(alternateBrickChar ? '(' : ')');
+		alternateBrickChar = !alternateBrickChar;
+		break;
+	case EMPTY:
+	default:
+		setChar('.');
+		break;
+	}
+}
+
+// Generates a starting game board.
+void
+generateBoard(const int level, Paddle paddle)
+{
+	// Initializes the board to be empty
+	memset(board, EMPTY, WIDTH * HEIGHT * sizeof(Tile));
+	// Create the paddle - It is 5 characters wide.
+	for (int i = 0; i < paddle.len; i++) {
+		board[paddle.x + i][paddle.y] = PADDLE;
+	}
+	// Fills in a section of the board with breakable blocks.
+	for (int i = 3; i < WIDTH - 3; i += 2) {
+		// The amount of blocks increasing through the game, capping at
+		// five-sixths the size of the playfield.
+		for (int j = 3; j < (HEIGHT / 3) + min(level / 2, HEIGHT / 2); j++) {
+			switch (rand() % 3) {
+			case 0:
+				board[i][j] = RED_BLOCK;
+				board[i + 1][j] = RED_BLOCK;
+				break;
+			case 1:
+				board[i][j] = BLUE_BLOCK;
+				board[i + 1][j] = BLUE_BLOCK;
+				break;
+			case 2:
+				board[i][j] = GREEN_BLOCK;
+				board[i + 1][j] = GREEN_BLOCK;
+				break;
+			default:
+				board[i][j] = EMPTY;
+				break;
+			}
+		}
+	}
+}
+
+// Draws initial graphics for the game. This includes a box around the playing
+// field, the score, the paddle, the blocks, etc.
+void
+initializeGraphics(const int level, const int score, const int lives)
+{
+	cls();
+	// Draws a box around the game field.
+	setColor(GREEN);
+	bar(2, 1, WIDTH, '_'); // Top bar
+	for (int y = 2; y < HEIGHT + 2; y++) { // Sides of the game field
+		locate(1, y);
+		putchar('{');
+		locate(WIDTH + 2, y);
+		putchar('}');
+	}
+	printf("\n{");
+	bar(2, HEIGHT + 2, WIDTH, '_'); // Bottom bar
+	putchar('}');
+	// Prints header information.
+	// title
+	locate(HEADER_XPOS, 1);
+	setColor(CYAN);
+	printf("%s", TITLE);
+	// lives
+	locate(HEADER_XPOS + strlen(TITLE) + INBETWEEN, 1);
+	setColor(LIGHTMAGENTA);
+	printf("%s%s%02d\n", LIVES_HEADER, ANSI_LIGHTRED, lives);
+	// level
+	locate(HEADER_XPOS + strlen(TITLE) + strlen(LIVES_HEADER) +
+			(INBETWEEN * 2), 1);
+	setColor(YELLOW);
+	printf("%s%s%02d\n", LEVEL_HEADER, ANSI_LIGHTRED, level);
+	// score
+	locate(HEADER_XPOS + strlen(TITLE) + strlen(LIVES_HEADER) +
+			strlen(LEVEL_HEADER) + (INBETWEEN * 3), 1);
+	setColor(LIGHTCYAN);
+	printf("%s%s%08d\n", SCORE_HEADER, ANSI_LIGHTRED, score);
+	// Draws the board tiles.
+	// i and j refer to y and x so that bricks are drawn in rows, not columns.
+	// This makes it easier to produce the two-character wide brick effect.
+	for (int i = 0; i < HEIGHT; i++) {
+		for (int j = 0; j < WIDTH; j++) {
+			draw_tile(j + 2, i + 2, board[j][i]);
+		}
+	}
+	fflush(stdout);
+}
+
+// Returns the maximum of two values.
+int
+max(int a, int b)
+{
+	return a > b ? a : b;
+}
+
+// Returns the minimum of two values.
+int
+min(int a, int b)
+{
+	return a < b ? a : b;
+}
+
+// Updates the paddle's location, moving it by offset. A negative value
+// indicates a move to the left; positive to the right. The paddle is bounded
+// by the playfield, and will stay entirely within it.
+void
+movePaddle(Paddle *paddle, int offset)
+{
+	// The x-coordinate (in board) of which tiles are going to be changed.
+	int newPaddleX, newEmptyX; 
+
+	if (offset < 0 && (*paddle).x + offset >= 0) {
+		for (int i = 0; i > offset; i--) {
+			newPaddleX = (*paddle).x - 1;
+			newEmptyX = (*paddle).x + (*paddle).len - 1;
+			board[newPaddleX][(*paddle).y] = PADDLE;
+			board[newEmptyX][(*paddle).y] = EMPTY;
+			updateTile(newPaddleX, (*paddle).y);
+			updateTile(newEmptyX, (*paddle).y);
+			(*paddle).x--;
+		}
+	} else if (offset > 0 && (*paddle).x + (*paddle).len + offset <= WIDTH) {
+		for (int i = 0; i < offset; i++) {
+			newPaddleX = (*paddle).x + (*paddle).len;
+			newEmptyX = (*paddle).x;
+			board[newPaddleX][(*paddle).y] = PADDLE;
+			board[newEmptyX][(*paddle).y] = EMPTY;
+			updateTile(newPaddleX, (*paddle).y);
+			updateTile(newEmptyX, (*paddle).y);
+			(*paddle).x++;
+		}
+	}
+	fflush(stdout);
+}
+
 // Plays a level of the game. Returns the amount of lives remaining at the
 // completion of the level, or 0 if the player runs out of lives.
 int
 play(int level, int *score, int *lives)
 {
+	// Holds information about the location of the paddle, from the left-most
+	// character.
+	Paddle paddle;
+	// The paddle gets shorter as the game goes on.
+	paddle.len = max(20 - (2 * (level / 4)), 10);
+	paddle.x = (WIDTH - paddle.len) / 2;
+	paddle.y = (11 * HEIGHT / 12) + 1;
+
 	// Give the player an extra life every few levels, with the amount of
 	// levels in between extra lives increasing as the game goes on. Levels with
 	// new lives are in sequence:
@@ -67,40 +279,58 @@ play(int level, int *score, int *lives)
 		(*lives)++;
 	}
 
-	// Initial graphics for the game field are now drawn. This includes a box
-	// around the playing field, the score, the paddle, the blocks, etc.
-	cls();
-	puts(TITLE);
-	locate(WIDTH - strlen("SCORE: ") - 8, 1); // Coordinates of "SCORE:" header
-	printf("SCORE: %08d", *score);
-	// Draws a box around the playfield.
-	bar(1, 2, WIDTH + 2, '_');
-	for (int y = 3; y < HEIGHT + 3; y++) {
-		locate(1, y);
-		putchar('{');
-		locate(WIDTH + 2, y);
-		putchar('}');
+	// Generates a new board for this level.
+	generateBoard(level, paddle);
+	
+	// Draws initial graphics for the board.
+	initializeGraphics(level, *score, *lives);
+
+	// MAIN GAME LOOP
+	int ch; // input chraacter	
+	for (;;) {
+		ch = nb_getch();
+		if (ch == 'j') { // go left
+			movePaddle(&paddle, -1);
+		} else if (ch == 'k') { // go right
+			movePaddle(&paddle, 1);
+		}
 	}
-	printf("\n{");
-	bar(2, HEIGHT + 3, WIDTH, '_');
-	putchar('}');
 
-	fflush(stdout);
-
+	locate(1, HEIGHT + 2); // Locate outside of the game board
 	// TODO: make proper win/lose test. This is just for testing.
-	return 0;
+	if (level < 100) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+// Redraws the tile at board[x][y] in the window. No bounds-checking is done
+// here.
+void
+updateTile(int x, int y)
+{
+	locate(x + 2, y + 2);
+	draw_tile(x + 2, y + 2, board[x][y]);
 }
 
 int
 main(int argc, char *argv[])
 {
+	srand(time(NULL));
+	setCursorVisibility(0);
+
 	int level = 1;
 	int score = 0;
-	int lives = 5;
+	int lives = 4; // At the start of level 1, this will be incremented to 5.
 
-	while (play(level, &score, &lives))
+	while (play(level, &score, &lives)) {
+		anykey(NULL);
 		level++;
+	}
 
+	setCursorVisibility(1);
+	resetColor();
 	puts("\n\n\nGAME OVER");
 }
 
