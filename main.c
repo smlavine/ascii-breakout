@@ -113,11 +113,11 @@ void generateBoard(const int level, const int maxBlockY,
 void initializeGraphics(const int level, const unsigned int score,
 		const int lives);
 int max(int a, int b);
-void message(char *fmt, ...);
 int min(int a, int b);
 void moveBall(Ball *ball, int x, int y);
 void movePaddle(Paddle *paddle);
 int play(int level, unsigned int *score, int *lives);
+void showMessage(char *fmt, ...);
 void updateTile(int x, int y);
 
 // Draws a horizontal bar across the screen.
@@ -175,6 +175,9 @@ checkBall(Ball *ball, unsigned int *score, unsigned int frame)
 		(*ball).yDirection = -(*ball).yDirection;
 	// bounce off paddle
 	} else if (board[nextX][nextY] == PADDLE) {
+		// If yDirection is not inverted here, then the ball will just roll
+		// about on the paddle for a little bit, which is actually kindof fun.
+		// Try it out if you're bored.
 		(*ball).yDirection = -(*ball).yDirection;
 		// randomize bounce a bit
 		if (rand() % 2 == 0)
@@ -345,76 +348,6 @@ max(int a, int b)
 	return a > b ? a : b;
 }
 
-// Prints the message in the arguments, formatting it similar to printf,
-// however only accepting/recognizing "%d", "%s", and "%c" as valid arguments.
-// The lines will be properly centered on the screen.
-void
-message(char *fmt, ...)
-{
-	// Copy the fmt string into an array so that strtok() can work with it.
-	char fmtCopy[strlen(fmt) + 1];
-	strcpy(fmtCopy, fmt);
-	
-	// This will hold the (formatted) text that will be printed on each line
-	// before it is printed.
-	char line[WIDTH + 1];
-
-	// Variables to handle the format arguments
-	int n;
-	char *s;
-	va_list ap;
-	va_start(ap, fmt);
-
-	char *token = strtok(fmtCopy, "\n");
-	for (int lineNumber = 0; token != NULL;
-			lineNumber++, token = strtok(NULL, "\n")) {
-		memset(line, 0, WIDTH + 1);
-
-		// Count how many printf arguments there are in the current line.
-		int argamt = 0;
-		for (int i = 0; i < strlen(token) - 1; i++) {
-			if (token[i] == '%' && token[i + 1] != '%') {
-				argamt++;
-			}
-		}
-		// while the value at *token is not '\0' (the end of the string)
-		for (; *token; token++) {
-			switch(*token) {
-			case '%':
-				// if a percentage is found, look for arguments.
-				switch (*++token) {
-				case 'd':
-					n = va_arg(ap, int);
-					sprintf(line + strlen(line), "%d", n);
-					break;
-				case 's':
-					s = va_arg(ap, char *);
-					sprintf(line + strlen(line), "%s", s);
-					break;
-				case 'c':
-					n = va_arg(ap, int);
-					sprintf(line + strlen(line), "%c", n);
-					break;
-				case '%':
-				default:
-					line[strlen(line)] = *token;
-					break;
-				}
-				break;
-			default:
-				line[strlen(line)] = *token;
-				break;
-			}
-		} // while (*token)
-
-		locate(WIDTH / 2 - strlen(line) / 2, HEIGHT / 2 + lineNumber);
-		printf("%s", line);
-
-	} // for(...)
-
-	va_end(ap);
-}
-
 // Returns the minimum of two values.
 int
 min(int a, int b)
@@ -491,10 +424,6 @@ play(int level, unsigned int *score, int *lives)
 	Ball ball;
 	ball.x = WIDTH / 2;
 	ball.y = (maxBlockY + paddle.y) / 2;
-	ball.xVelocity = 7;
-	ball.yVelocity = 7;
-	ball.xDirection = 1;
-	ball.yDirection = -1;
 
 	// Give the player some extra lives every once in a while, to be nice.
 	if (level <= 1) {
@@ -515,18 +444,52 @@ play(int level, unsigned int *score, int *lives)
 	// Generates a new board for this level.
 	generateBoard(level, maxBlockY, paddle, ball);
 	
+	// A message is printed at the screen at the start of each level/life. It
+	// is slightly different if you are not on level 1.
+	char *message;
+	if (level == 1) {
+		message =
+			"ASCII Breakout\n"
+			"by Sebastian LaVine\n"
+			"Press j and k to move the paddle\n"
+			"Level: %d\nLives remaining: %d\n"
+			"Press any key to continue";
+	} else {
+		message =
+			"Level: %d\nLives remaining: %d\n"
+			"Press any key to continue";
+	}
+
 	// This is the life loop. In this loop, one life is played out. It can loop
 	// many times within one call of play() (a level).
 	while (*lives > 0) {
 		// Counts how many frames of gameplay have taken place so far.
 		unsigned int frame = 0;
 
+		// The ball resets at the start of each life.
+		ball.x = WIDTH / 2;
+		ball.y = (maxBlockY + paddle.y) / 2;
+		ball.xVelocity = rand() % 10 + 6;
+		ball.yVelocity = rand() % 10 + 6;
+		ball.xDirection = rand() % 2 == 0 ? 1 : -1;
+		ball.yDirection = -1;
+
+		// The paddle recenters itself and resets at the start of each life.
+		paddle.x = (WIDTH - paddle.len) / 2;
+		paddle.direction = 0;
+		paddle.lastDirection = 0;
+		// Update paddle tile graphics.
+		for (int i = 0; i < WIDTH; i++) {
+			board[i][paddle.y] = EMPTY;
+		}
+		for (int i = 0; i < paddle.len; i++) {
+			board[paddle.x + i][paddle.y] = PADDLE;
+		}
+
 		// Draws initial graphics for the board.
 		initializeGraphics(level, *score, *lives);
 
-		message("ASCII Breakout\nby Sebastian LaVine\n"
-				"Press j and k to move the paddle\nLives remaining: %d\n"
-				"Press any key to continue", *lives);
+		showMessage(message, level, *lives);
 		anykey(NULL);
 		// Redraw initial graphics to make the message go away.
 		initializeGraphics(level, *score, *lives);
@@ -581,25 +544,96 @@ play(int level, unsigned int *score, int *lives)
 				movePaddle(&paddle);
 			}
 
-			// TODO: actually implement lives system here
-			if (!checkBall(&ball, score, frame)) {
-				return 0;
-			}
-
 			// I move the cursor out of the way so that inputs that are not
 			// caught by nb_getch) are not in the way of the play field.
 			//locate(WIDTH + 3, HEIGHT + 3);
 			locate(1000, 1000);
 			fflush(stdout);
+
+			if (!checkBall(&ball, score, frame)) {
+				(*lives)--;
+				break; // breaks out of input loop
+			}
+
 		} // for (;;) (input loop)
+
+		// if the player has ran out of lives, then the game is over.
+		if (*lives <= 0) {
+			return 0;
+		}
 	} // life loop
 
-	// if the player has ran out of lives, then the game is over.
-	if (*lives <= 0) {
-		return 0;
-	} else {
-		return 1;
-	}
+	return 1; // indicates that the player has not ran out of lives
+}
+
+// Prints the message in the arguments, formatting it similar to printf,
+// however only accepting/recognizing "%d", "%s", and "%c" as valid arguments.
+// The lines will be properly centered on the screen.
+void
+showMessage(char *fmt, ...)
+{
+	// Copy the fmt string into an array so that strtok() can work with it.
+	char fmtCopy[strlen(fmt) + 1];
+	strcpy(fmtCopy, fmt);
+	
+	// This will hold the (formatted) text that will be printed on each line
+	// before it is printed.
+	char line[WIDTH + 1];
+
+	// Variables to handle the format arguments
+	int n;
+	char *s;
+	va_list ap;
+	va_start(ap, fmt);
+
+	char *token = strtok(fmtCopy, "\n");
+	for (int lineNumber = 0; token != NULL;
+			lineNumber++, token = strtok(NULL, "\n")) {
+		memset(line, 0, WIDTH + 1);
+
+		// Count how many printf arguments there are in the current line.
+		int argamt = 0;
+		for (int i = 0; i < strlen(token) - 1; i++) {
+			if (token[i] == '%' && token[i + 1] != '%') {
+				argamt++;
+			}
+		}
+		// while the value at *token is not '\0' (the end of the string)
+		for (; *token; token++) {
+			switch(*token) {
+			case '%':
+				// if a percentage is found, look for arguments.
+				switch (*++token) {
+				case 'd':
+					n = va_arg(ap, int);
+					sprintf(line + strlen(line), "%d", n);
+					break;
+				case 's':
+					s = va_arg(ap, char *);
+					sprintf(line + strlen(line), "%s", s);
+					break;
+				case 'c':
+					n = va_arg(ap, int);
+					sprintf(line + strlen(line), "%c", n);
+					break;
+				case '%':
+				default:
+					line[strlen(line)] = *token;
+					break;
+				}
+				break;
+			default:
+				line[strlen(line)] = *token;
+				break;
+			}
+		} // while (*token)
+
+		locate(WIDTH / 2 - strlen(line) / 2, HEIGHT / 2 + lineNumber);
+		printf("%s", line);
+
+	} // for(...)
+
+	va_end(ap);
 }
 
 // Redraws the tile at board[x][y] in the window. No bounds-checking is done
@@ -626,9 +660,14 @@ main(int argc, char *argv[])
 		level++;
 	}
 
+	// When the program reaches this point, the player has ran out of lives,
+	// and the game is over.
+	showMessage("Game over!\nScore: %d\nLevel: %d\nPress any key to quit.",
+			score, level);
+	anykey(NULL);
+
 	setCursorVisibility(1);
 	resetColor();
-	locate(1, HEIGHT + 2);
-	puts("\nGAME OVER");
+	locate(1, HEIGHT + 3);
 }
 
