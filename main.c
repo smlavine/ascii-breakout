@@ -39,9 +39,25 @@
  */
 #include "rogueutil.h"
 
-// Type to store data about the location of the paddle on the play field.
+// Store data about the ball, including location and velocity.
 typedef struct {
-	// Coordinates of the left-most character in the paddle.
+	// Coordinates of the ball in board.
+	int x;
+	int y;
+	// How many frames the ball moves in each axis. For example, if xVelocity
+	// was 1, then the ball would move on the x axis every frame. However, if
+	// xVelocity was 3, then the ball would move on the x axis every 3 frames.
+	int xVelocity;
+	int yVelocity;
+	// How many tiles the ball moves on each axis, on a frame where it moves in
+	// that axis.
+	int xDirection; // negative is left, positive is right.
+	int yDirection; // negative is up, positive is down.
+} Ball;
+
+// Store data about the paddle, including location and direction.
+typedef struct {
+	// Coordinates (in board) of the left-most character in the paddle.
 	int x;
 	int y;
 	// Length of the paddle.
@@ -50,11 +66,14 @@ typedef struct {
 	int direction;
 	// The last direction the paddle was moving before it was frozen.
 	int lastDirection;
+	// used to control speed of the paddle
+	int velocity;
 } Paddle;
 
-// Type to store data about different spaces on the board.
+// Stores data about each tile (character space) on the board, namely, what it
+// represents.
 typedef enum {
-	BALL = 'o',
+	BALL = 'O',
 	PADDLE = MAGENTA, // WHITE color code will represent the paddle
 	RED_BLOCK = RED, // WHITE color code will represent the paddle
 	BLUE_BLOCK = BLUE,
@@ -81,11 +100,15 @@ const int HEADER_XPOS = 4;
 Tile board[WIDTH][HEIGHT];
 
 void bar(int x, int y, int len, char c);
+int checkBall(Ball *ball, unsigned frame);
+void destroyBlock(int x, int y);
 void drawTile(int x, int y, Tile t);
-void generateBoard(const int level, Paddle paddle);
+void generateBoard(const int level, const int maxBlockY,
+		Paddle paddle, Ball ball);
 void initializeGraphics(const int level, const int score, const int lives);
 int max(int a, int b);
 int min(int a, int b);
+void moveBall(Ball *ball, int x, int y);
 void movePaddle(Paddle *paddle);
 int play(int level, int *score, int *lives);
 void updateTile(int x, int y);
@@ -100,13 +123,93 @@ bar(int x, int y, int len, char c)
 	}
 }
 
-// Draws at (x, y) the proper value depending on the tile, including the proper
-// color. Does not reset colors after usage.
+// Checks to see if the ball should move this frame. If it should, then
+// moveBall will be called. Also handles collision and bouncing. Returns 0 if
+// the ball reaches the bottom of the play field, otherwise returns 1.
+int
+checkBall(Ball *ball, unsigned frame)
+{
+	// The new coordinates of the ball, if it moves successfully.
+	int nextX = (*ball).x,
+		nextY = (*ball).y;
+
+
+	if (frame % (*ball).xVelocity == 0) {
+		nextX += (*ball).xDirection;
+	}
+	if (frame % (*ball).yVelocity == 0) {
+		nextY += (*ball).yDirection;
+	}
+	
+	// Don't do anything if the ball didn't change position.
+	if (nextX == (*ball).x && nextY == (*ball).y) {
+		return 1;
+	}
+
+	// The ball has hit the bottom of the game field.
+	if (nextY >= HEIGHT) {
+		return 0;
+	}
+
+	// if the incoming tile is valid and empty, move there
+	if (nextX >= 0 && nextX < WIDTH && nextY >= 0
+			&& board[nextX][nextY] == EMPTY) {
+		moveBall(ball, nextX, nextY);
+	// otherwise, bounce!
+	// bounce off the side walls
+	} else if (nextX <= 0 || nextX >= WIDTH) { 
+		(*ball).xDirection = -(*ball).xDirection;
+	// bounce off the ceiling
+	} else if (nextY <= 0) {
+		(*ball).yDirection = -(*ball).yDirection;
+	// bounce off paddle
+	} else if (board[nextX][nextY] == PADDLE) {
+		(*ball).yDirection = -(*ball).yDirection;
+		// randomize bounce a bit
+		if (rand() % 2 == 0)
+			(*ball).xDirection = -(*ball).xDirection;
+		// randomize velocity
+		(*ball).xVelocity = (rand() % 8) + 5;
+		(*ball).yVelocity = (rand() % 8) + 5;
+	// bounce off (and destroy) block
+	} else { 
+		destroyBlock(nextX, nextY);
+		if (rand() % 2 == 0)
+			(*ball).xDirection = -(*ball).xDirection;
+		if (rand() % 2 == 0)
+			(*ball).yDirection = -(*ball).yDirection;
+	}
+	
+	return 1;
+}
+
+// Destroys a block at board[x][y], and replaces it with EMPTY. Intended to
+// be called upon the ball bouncing into a block.
+void
+destroyBlock(int x, int y)
+{
+	// Blocks are generated in groups of two, which means that if one block
+	// tile is hit, then one of its neighbors is also going to be destroyed.
+	// Because of the way the board is generated, the first tile in a block is
+	// always odd. We can use this fact to determine which tile of the block
+	// the ball hit: the first or the second. If the x value is odd, then the
+	// ball hit the first; if it is even, the the ball hit the second. This
+	// is interpreted as an offset to the x value which, when added to the x
+	// value, will give us the coordinate of the second tile in the block.
+	int offset = (x % 2 == 1) ? 1 : -1;
+	board[x][y] = EMPTY;
+	updateTile(x, y);
+	board[x + offset][y] = EMPTY;
+	updateTile(x + offset, y);
+}
+
+// Draws at (x, y) [on the terminal window] the proper value depending on the
+// tile, including the proper color. Does not reset colors after usage.
 void
 drawTile(int x, int y, Tile t)
 {
-	// alternates the character drawn for bricks
-	static int alternateBrickChar = 1;
+	// alternates the character drawn for blocks
+	static int alternateBlockChar = 1;
 	resetColor();
 	locate(x, y);
 	switch (t) {
@@ -122,32 +225,33 @@ drawTile(int x, int y, Tile t)
 	case GREEN_BLOCK:
 		setBackgroundColor(t);
 		setColor(BLACK);
-		// This helps show the player that bricks are two characters wide.
-		setChar(alternateBrickChar ? '(' : ')');
-		alternateBrickChar = !alternateBrickChar;
+		// This helps show the player that blocks are two characters wide.
+		setChar(alternateBlockChar ? '(' : ')');
+		alternateBlockChar = !alternateBlockChar;
 		break;
 	case EMPTY:
 	default:
-		setChar('.');
+		setChar(' ');
 		break;
 	}
 }
 
 // Generates a starting game board.
 void
-generateBoard(const int level, Paddle paddle)
+generateBoard(const int level, const int maxBlockY, Paddle paddle, Ball ball)
 {
 	// Initializes the board to be empty
 	memset(board, EMPTY, WIDTH * HEIGHT * sizeof(Tile));
-	// Create the paddle - It is 5 characters wide.
+	// Create the paddle.
 	for (int i = 0; i < paddle.len; i++) {
 		board[paddle.x + i][paddle.y] = PADDLE;
 	}
+	// Create the ball.
+	board[ball.x][ball.y] = BALL;
 	// Fills in a section of the board with breakable blocks.
 	for (int i = 3; i < WIDTH - 3; i += 2) {
-		// The amount of blocks increasing through the game, capping at
-		// five-sixths the size of the playfield.
-		for (int j = 3; j < (HEIGHT / 3) + min(level / 2, HEIGHT / 2); j++) {
+		// maxBlockY is the lowest distance the blocks can be generated.
+		for (int j = 3; j < maxBlockY; j++) {
 			switch (rand() % 3) {
 			case 0:
 				board[i][j] = RED_BLOCK;
@@ -207,8 +311,8 @@ initializeGraphics(const int level, const int score, const int lives)
 	setColor(LIGHTCYAN);
 	printf("%s%s%08d\n", SCORE_HEADER, ANSI_LIGHTRED, score);
 	// Draws the board tiles.
-	// i and j refer to y and x so that bricks are drawn in rows, not columns.
-	// This makes it easier to produce the two-character wide brick effect.
+	// i and j refer to y and x so that blocks are drawn in rows, not columns.
+	// This makes it easier to produce the two-character wide block effect.
 	for (int i = 0; i < HEIGHT; i++) {
 		for (int j = 0; j < WIDTH; j++) {
 			drawTile(j + 2, i + 2, board[j][i]);
@@ -231,13 +335,26 @@ min(int a, int b)
 	return a < b ? a : b;
 }
 
-// Move the paddle in its direction.
+// Moves the ball to board[x][y].
+void
+moveBall(Ball *ball, int x, int y)
+{
+	board[(*ball).x][(*ball).y] = EMPTY;
+	updateTile((*ball).x, (*ball).y);
+	(*ball).x = x;
+	(*ball).y = y;
+	board[x][y] = BALL;
+	updateTile(x, y);
+}
+
+// Move the paddle according to its direction. 
 void
 movePaddle(Paddle *paddle)
 {
 	// The x-coordinate (in board) of which tiles are going to be changed.
 	int newPaddleX, newEmptyX; 
 
+	// if paddle is moving left
 	if ((*paddle).direction < 0 && (*paddle).x + (*paddle).direction >= 0) {
 		for (int i = 0; i > (*paddle).direction; i--) {
 			newPaddleX = (*paddle).x - 1;
@@ -248,6 +365,7 @@ movePaddle(Paddle *paddle)
 			updateTile(newEmptyX, (*paddle).y);
 			(*paddle).x--;
 		}
+	// if paddle is moving right
 	} else if ((*paddle).direction > 0
 			&& (*paddle).x + (*paddle).len + (*paddle).direction <= WIDTH) {
 		for (int i = 0; i < (*paddle).direction; i++) {
@@ -268,15 +386,33 @@ movePaddle(Paddle *paddle)
 int
 play(int level, int *score, int *lives)
 {
-	// Holds information about the location of the paddle, from the left-most
-	// character.
+	// Counts how many frames of gameplay have taken place so far.
+	unsigned frame = 0;
+
+	// The length of msleep at the start of each game loop.
+	int sleepLength = 5;
+
+	// The height of the blocks (how far down on the play field they generate)
+	// increases as the levels progress, capping at five-sixths of the height
+	// of the board.
+	const int maxBlockY = (HEIGHT / 3) + min(level / 2, HEIGHT / 2);
+
 	Paddle paddle;
 	// The paddle gets shorter as the game goes on.
-	paddle.len = max(20 - (2 * (level / 4)), 10);
+	paddle.len = max(20 - (2 * (level / 3)), 10);
 	paddle.x = (WIDTH - paddle.len) / 2;
-	paddle.y = (11 * HEIGHT / 12) + 1;
+	paddle.y = (11 * HEIGHT) / 12;
 	paddle.direction = 0;
 	paddle.lastDirection = 0;
+	paddle.velocity = 4;
+
+	Ball ball;
+	ball.x = WIDTH / 2;
+	ball.y = (maxBlockY + paddle.y) / 2;
+	ball.xVelocity = 7;
+	ball.yVelocity = 7;
+	ball.xDirection = 1;
+	ball.yDirection = -1;
 
 	// Give the player an extra life every few levels, with the amount of
 	// levels in between extra lives increasing as the game goes on. Levels with
@@ -287,7 +423,7 @@ play(int level, int *score, int *lives)
 	}
 
 	// Generates a new board for this level.
-	generateBoard(level, paddle);
+	generateBoard(level, maxBlockY, paddle, ball);
 	
 	// Draws initial graphics for the board.
 	initializeGraphics(level, *score, *lives);
@@ -295,37 +431,52 @@ play(int level, int *score, int *lives)
 	// MAIN GAME LOOP
 	for (;;) {
 		// Controls how fast the paddle will move.
-		msleep(30);
+		msleep(sleepLength);
+		frame++;
+
 		// There is no default case because I want the paddle to continue to
 		// move even if there is no input.
 		switch (nb_getch()) {
-		case 'f': // freeze/unfreeze the paddle in its place
-			if (paddle.lastDirection == 0) { // freeze
-				paddle.lastDirection = paddle.direction;
-				paddle.direction = 0;
-			} else {
-				paddle.direction = paddle.lastDirection;
-				paddle.lastDirection = 0;
-			}
-			break;
+			// A freeze feature which I removed in development because I
+			// thought it made the game too easy. I might add it back at
+			// some point.
+		//case 'f': // freeze/unfreeze the paddle in its place
+		//case 'F':
+		//	if (paddle.lastDirection == 0) { // freeze
+		//		paddle.lastDirection = paddle.direction;
+		//		paddle.direction = 0;
+		//	} else {
+		//		paddle.direction = paddle.lastDirection;
+		//		paddle.lastDirection = 0;
+		//	}
+		//	break;
 		case 'j': // move the paddle left
+		case 'J':
 			paddle.direction = -1;
 			paddle.lastDirection = 0;
 			break;
 		case 'k': // move the paddle right
+		case 'K':
 			paddle.direction = 1;
 			paddle.lastDirection = 0;
 			break;
 		case 'q': // quits the game.
+		case 'Q':
 			return 0;
 			break;
 		case 'r': // redraw the screen. doesn't control the paddle.
+		case 'R':
 			initializeGraphics(level, *score, *lives);
 			break;
 		}
 
-		if (paddle.direction != 0) {
+		if (paddle.direction != 0 && frame % paddle.velocity == 0) {
 			movePaddle(&paddle);
+		}
+
+		// TODO: actually implement lives system here
+		if (!checkBall(&ball, frame)) {
+			return 0;
 		}
 
 		// I move the cursor out of the way so that inputs that are not
@@ -335,13 +486,6 @@ play(int level, int *score, int *lives)
 		fflush(stdout);
 	}
 
-	locate(1, HEIGHT + 2); // Locate outside of the game board
-	// TODO: make proper win/lose test. This is just for testing.
-	if (level < 100) {
-		return 1;
-	} else {
-		return 0;
-	}
 }
 
 // Redraws the tile at board[x][y] in the window. No bounds-checking is done
@@ -361,7 +505,7 @@ main(int argc, char *argv[])
 
 	int level = 1;
 	int score = 0;
-	int lives = 4; // At the start of level 1, this will be incremented to 5.
+	int lives = 2; // At the start of level 1, this will be incremented to 3.
 
 	while (play(level, &score, &lives)) {
 		anykey(NULL);
