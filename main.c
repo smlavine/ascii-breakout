@@ -26,8 +26,10 @@
  * <https://github.com/smlavine/ascii-breakout>
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 /* Rogueutil is a small library which provides simple color and cursor
@@ -90,6 +92,9 @@ const char *SCORE_HEADER = "Score:";
 const int INBETWEEN = 5;
 const int HEADER_XPOS = 4;
 
+// The amount of lives the player starts out with at the beginning of the game.
+const int STARTING_LIVES = 5;
+
 // Dimensions of the play field.
 // I used #define instead of const int for these so that I can declare board
 // (see below) at file scope.
@@ -108,6 +113,7 @@ void generateBoard(const int level, const int maxBlockY,
 void initializeGraphics(const int level, const unsigned int score,
 		const int lives);
 int max(int a, int b);
+void message(char *fmt, ...);
 int min(int a, int b);
 void moveBall(Ball *ball, int x, int y);
 void movePaddle(Paddle *paddle);
@@ -339,6 +345,76 @@ max(int a, int b)
 	return a > b ? a : b;
 }
 
+// Prints the message in the arguments, formatting it similar to printf,
+// however only accepting/recognizing "%d", "%s", and "%c" as valid arguments.
+// The lines will be properly centered on the screen.
+void
+message(char *fmt, ...)
+{
+	// Copy the fmt string into an array so that strtok() can work with it.
+	char fmtCopy[strlen(fmt) + 1];
+	strcpy(fmtCopy, fmt);
+	
+	// This will hold the (formatted) text that will be printed on each line
+	// before it is printed.
+	char line[WIDTH + 1];
+
+	// Variables to handle the format arguments
+	int n;
+	char *s;
+	va_list ap;
+	va_start(ap, fmt);
+
+	char *token = strtok(fmtCopy, "\n");
+	for (int lineNumber = 0; token != NULL;
+			lineNumber++, token = strtok(NULL, "\n")) {
+		memset(line, 0, WIDTH + 1);
+
+		// Count how many printf arguments there are in the current line.
+		int argamt = 0;
+		for (int i = 0; i < strlen(token) - 1; i++) {
+			if (token[i] == '%' && token[i + 1] != '%') {
+				argamt++;
+			}
+		}
+		// while the value at *token is not '\0' (the end of the string)
+		for (; *token; token++) {
+			switch(*token) {
+			case '%':
+				// if a percentage is found, look for arguments.
+				switch (*++token) {
+				case 'd':
+					n = va_arg(ap, int);
+					sprintf(line + strlen(line), "%d", n);
+					break;
+				case 's':
+					s = va_arg(ap, char *);
+					sprintf(line + strlen(line), "%s", s);
+					break;
+				case 'c':
+					n = va_arg(ap, int);
+					sprintf(line + strlen(line), "%c", n);
+					break;
+				case '%':
+				default:
+					line[strlen(line)] = *token;
+					break;
+				}
+				break;
+			default:
+				line[strlen(line)] = *token;
+				break;
+			}
+		} // while (*token)
+
+		locate(WIDTH / 2 - strlen(line) / 2, HEIGHT / 2 + lineNumber);
+		printf("%s", line);
+
+	} // for(...)
+
+	va_end(ap);
+}
+
 // Returns the minimum of two values.
 int
 min(int a, int b)
@@ -397,11 +473,6 @@ movePaddle(Paddle *paddle)
 int
 play(int level, unsigned int *score, int *lives)
 {
-	// Counts how many frames of gameplay have taken place so far.
-	unsigned int frame = 0;
-
-	// The length of msleep at the start of each game loop.
-	int sleepLength = 5;
 
 	// The height of the blocks (how far down on the play field they generate)
 	// increases as the levels progress, capping at five-sixths of the height
@@ -426,80 +497,109 @@ play(int level, unsigned int *score, int *lives)
 	ball.yDirection = -1;
 
 	// Give the player some extra lives every once in a while, to be nice.
-	if (level > 1 && level < 10) {
-		lives += 2;
+	if (level <= 1) {
+		// But not on the first level, since the player starts out with some.
+		;
+	} else if (level < 10) {
+		*lives += 2;
 	} else if (level < 20) {
-		lives++;
+		(*lives)++;
+	// Gives out a life every two levels now.
 	} else if (level % 2 == 0 && level < 40) {
-		lives++;
+		(*lives)++;
+	// And now every four, until level 60, then the handouts end.
 	} else if (level % 4 == 0 && level < 60) {
-		lives++;
+		(*lives)++;
 	}
 
 	// Generates a new board for this level.
 	generateBoard(level, maxBlockY, paddle, ball);
 	
-	// Draws initial graphics for the board.
-	initializeGraphics(level, *score, *lives);
+	// This is the life loop. In this loop, one life is played out. It can loop
+	// many times within one call of play() (a level).
+	while (*lives > 0) {
+		// Counts how many frames of gameplay have taken place so far.
+		unsigned int frame = 0;
 
-	// MAIN GAME LOOP
-	for (;;) {
-		// Controls how fast the paddle will move.
-		msleep(sleepLength);
-		frame++;
+		// Draws initial graphics for the board.
+		initializeGraphics(level, *score, *lives);
 
-		// There is no default case because I want the paddle to continue to
-		// move even if there is no input.
-		switch (nb_getch()) {
-			// A freeze feature which I removed in development because I
-			// thought it made the game too easy. I might add it back at
-			// some point.
-		//case 'f': // freeze/unfreeze the paddle in its place
-		//case 'F':
-		//	if (paddle.lastDirection == 0) { // freeze
-		//		paddle.lastDirection = paddle.direction;
-		//		paddle.direction = 0;
-		//	} else {
-		//		paddle.direction = paddle.lastDirection;
-		//		paddle.lastDirection = 0;
-		//	}
-		//	break;
-		case 'j': // move the paddle left
-		case 'J':
-			paddle.direction = -1;
-			paddle.lastDirection = 0;
-			break;
-		case 'k': // move the paddle right
-		case 'K':
-			paddle.direction = 1;
-			paddle.lastDirection = 0;
-			break;
-		case 'q': // quits the game.
-		case 'Q':
-			return 0;
-			break;
-		case 'r': // redraw the screen. doesn't control the paddle.
-		case 'R':
-			initializeGraphics(level, *score, *lives);
-			break;
-		}
+		message("ASCII Breakout\nby Sebastian LaVine\n"
+				"Press j and k to move the paddle\nLives remaining: %d\n"
+				"Press any key to continue", *lives);
+		anykey(NULL);
+		// Redraw initial graphics to make the message go away.
+		initializeGraphics(level, *score, *lives);
 
-		if (paddle.direction != 0 && frame % paddle.velocity == 0) {
-			movePaddle(&paddle);
-		}
+		// This is the main game loop. Input is interpreted, tiles move, etc.
+		for (;;) {
+			// Controls the speed of the game; speed of the ball and the paddle,
+			// mainly. Changing this value will also require changing the
+			// various velocities of the ball and paddle for gameplay to
+			// remain smooth.
+			int sleepLength = 5;
+			msleep(sleepLength);
+			frame++;
 
-		// TODO: actually implement lives system here
-		if (!checkBall(&ball, score, frame)) {
-			return 0;
-		}
+			// There is no default case because I want the paddle to continue to
+			// move even if there is no input.
+			switch (nb_getch()) {
+				// A freeze feature which I removed in development because I
+				// thought it made the game too easy. I might add it back at
+				// some point.
+				//case 'f': // freeze/unfreeze the paddle in its place
+				//case 'F':
+				//	if (paddle.lastDirection == 0) { // freeze
+				//		paddle.lastDirection = paddle.direction;
+				//		paddle.direction = 0;
+				//	} else {
+				//		paddle.direction = paddle.lastDirection;
+				//		paddle.lastDirection = 0;
+				//	}
+				//	break;
+			case 'j': // move the paddle left
+			case 'J':
+				paddle.direction = -1;
+				paddle.lastDirection = 0;
+				break;
+			case 'k': // move the paddle right
+			case 'K':
+				paddle.direction = 1;
+				paddle.lastDirection = 0;
+				break;
+			case 'q': // quits the game.
+			case 'Q':
+				return 0;
+				break;
+			case 'r': // redraw the screen. doesn't control the paddle.
+			case 'R':
+				initializeGraphics(level, *score, *lives);
+				break;
+			}
 
-		// I move the cursor out of the way so that inputs that are not
-		// caught by nb_getch) are not in the way of the play field.
-		//locate(WIDTH + 3, HEIGHT + 3);
-		locate(1000, 1000);
-		fflush(stdout);
+			if (paddle.direction != 0 && frame % paddle.velocity == 0) {
+				movePaddle(&paddle);
+			}
+
+			// TODO: actually implement lives system here
+			if (!checkBall(&ball, score, frame)) {
+				return 0;
+			}
+
+			// I move the cursor out of the way so that inputs that are not
+			// caught by nb_getch) are not in the way of the play field.
+			//locate(WIDTH + 3, HEIGHT + 3);
+			locate(1000, 1000);
+			fflush(stdout);
+		} // for (;;) (input loop)
+	} // life loop
+
+	// if the player has ran out of lives, then the game is over.
+	if (*lives <= 0) {
+		return 0;
+	} else {
+		return 1;
 	}
-
 }
 
 // Redraws the tile at board[x][y] in the window. No bounds-checking is done
@@ -519,7 +619,7 @@ main(int argc, char *argv[])
 
 	int level = 1;
 	unsigned int score = 0;
-	int lives = 5;
+	int lives = STARTING_LIVES;
 
 	while (play(level, &score, &lives)) {
 		anykey(NULL);
