@@ -100,17 +100,18 @@ const int HEADER_XPOS = 4;
 Tile board[WIDTH][HEIGHT];
 
 void bar(int x, int y, int len, char c);
-int checkBall(Ball *ball, unsigned frame);
-void destroyBlock(int x, int y);
+int checkBall(Ball *ball, unsigned int *score, unsigned int frame);
+void destroyBlock(int x, int y, unsigned int *score);
 void drawTile(int x, int y, Tile t);
 void generateBoard(const int level, const int maxBlockY,
 		Paddle paddle, Ball ball);
-void initializeGraphics(const int level, const int score, const int lives);
+void initializeGraphics(const int level, const unsigned int score,
+		const int lives);
 int max(int a, int b);
 int min(int a, int b);
 void moveBall(Ball *ball, int x, int y);
 void movePaddle(Paddle *paddle);
-int play(int level, int *score, int *lives);
+int play(int level, unsigned int *score, int *lives);
 void updateTile(int x, int y);
 
 // Draws a horizontal bar across the screen.
@@ -127,7 +128,7 @@ bar(int x, int y, int len, char c)
 // moveBall will be called. Also handles collision and bouncing. Returns 0 if
 // the ball reaches the bottom of the play field, otherwise returns 1.
 int
-checkBall(Ball *ball, unsigned frame)
+checkBall(Ball *ball, unsigned int *score, unsigned int frame)
 {
 	// The new coordinates of the ball, if it moves successfully.
 	int nextX = (*ball).x,
@@ -156,6 +157,10 @@ checkBall(Ball *ball, unsigned frame)
 			&& board[nextX][nextY] == EMPTY) {
 		moveBall(ball, nextX, nextY);
 	// otherwise, bounce!
+	// if stuck in a corner, invert both directions
+	} else if ((*ball).y == 0 && ((*ball).x == 0 || (*ball).x == WIDTH - 1)) {
+		(*ball).xDirection = -(*ball).xDirection;
+		(*ball).yDirection = -(*ball).yDirection;
 	// bounce off the side walls
 	} else if (nextX <= 0 || nextX >= WIDTH) { 
 		(*ball).xDirection = -(*ball).xDirection;
@@ -173,7 +178,7 @@ checkBall(Ball *ball, unsigned frame)
 		(*ball).yVelocity = (rand() % 8) + 5;
 	// bounce off (and destroy) block
 	} else { 
-		destroyBlock(nextX, nextY);
+		destroyBlock(nextX, nextY, score);
 		if (rand() % 2 == 0)
 			(*ball).xDirection = -(*ball).xDirection;
 		if (rand() % 2 == 0)
@@ -186,7 +191,7 @@ checkBall(Ball *ball, unsigned frame)
 // Destroys a block at board[x][y], and replaces it with EMPTY. Intended to
 // be called upon the ball bouncing into a block.
 void
-destroyBlock(int x, int y)
+destroyBlock(int x, int y, unsigned int *score)
 {
 	// Blocks are generated in groups of two, which means that if one block
 	// tile is hit, then one of its neighbors is also going to be destroyed.
@@ -201,6 +206,12 @@ destroyBlock(int x, int y)
 	updateTile(x, y);
 	board[x + offset][y] = EMPTY;
 	updateTile(x + offset, y);
+	// Give the player points for destroying a block.
+	*score += 10;
+	locate(HEADER_XPOS + strlen(TITLE) + strlen(LIVES_HEADER) +
+			strlen(LEVEL_HEADER) + (INBETWEEN * 3), 1);
+	setColor(LIGHTCYAN);
+	printf("%s%s%08u\n", SCORE_HEADER, ANSI_LIGHTRED, *score);
 }
 
 // Draws at (x, y) [on the terminal window] the proper value depending on the
@@ -276,7 +287,7 @@ generateBoard(const int level, const int maxBlockY, Paddle paddle, Ball ball)
 // Draws initial graphics for the game. This includes a box around the playing
 // field, the score, the paddle, the blocks, etc.
 void
-initializeGraphics(const int level, const int score, const int lives)
+initializeGraphics(const int level, const unsigned int score, const int lives)
 {
 	cls();
 	// Draws a box around the game field.
@@ -309,7 +320,7 @@ initializeGraphics(const int level, const int score, const int lives)
 	locate(HEADER_XPOS + strlen(TITLE) + strlen(LIVES_HEADER) +
 			strlen(LEVEL_HEADER) + (INBETWEEN * 3), 1);
 	setColor(LIGHTCYAN);
-	printf("%s%s%08d\n", SCORE_HEADER, ANSI_LIGHTRED, score);
+	printf("%s%s%08u\n", SCORE_HEADER, ANSI_LIGHTRED, score);
 	// Draws the board tiles.
 	// i and j refer to y and x so that blocks are drawn in rows, not columns.
 	// This makes it easier to produce the two-character wide block effect.
@@ -384,10 +395,10 @@ movePaddle(Paddle *paddle)
 // Plays a level of the game. Returns the amount of lives remaining at the
 // completion of the level, or 0 if the player runs out of lives.
 int
-play(int level, int *score, int *lives)
+play(int level, unsigned int *score, int *lives)
 {
 	// Counts how many frames of gameplay have taken place so far.
-	unsigned frame = 0;
+	unsigned int frame = 0;
 
 	// The length of msleep at the start of each game loop.
 	int sleepLength = 5;
@@ -414,12 +425,15 @@ play(int level, int *score, int *lives)
 	ball.xDirection = 1;
 	ball.yDirection = -1;
 
-	// Give the player an extra life every few levels, with the amount of
-	// levels in between extra lives increasing as the game goes on. Levels with
-	// new lives are in sequence:
-	// 1, 2, 3, 4, 6, 8, 12, 16, 20, 29, 33, 37, 41, 45, 54, 58...
-	if (level % (1 + level / 5) % 5 == 0) {
-		(*lives)++;
+	// Give the player some extra lives every once in a while, to be nice.
+	if (level > 1 && level < 10) {
+		lives += 2;
+	} else if (level < 20) {
+		lives++;
+	} else if (level % 2 == 0 && level < 40) {
+		lives++;
+	} else if (level % 4 == 0 && level < 60) {
+		lives++;
 	}
 
 	// Generates a new board for this level.
@@ -475,7 +489,7 @@ play(int level, int *score, int *lives)
 		}
 
 		// TODO: actually implement lives system here
-		if (!checkBall(&ball, frame)) {
+		if (!checkBall(&ball, score, frame)) {
 			return 0;
 		}
 
@@ -504,8 +518,8 @@ main(int argc, char *argv[])
 	setCursorVisibility(0);
 
 	int level = 1;
-	int score = 0;
-	int lives = 2; // At the start of level 1, this will be incremented to 3.
+	unsigned int score = 0;
+	int lives = 5;
 
 	while (play(level, &score, &lives)) {
 		anykey(NULL);
