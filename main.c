@@ -76,8 +76,8 @@ typedef struct {
 // represents.
 typedef enum {
 	BALL = 'O',
-	PADDLE = MAGENTA, // WHITE color code will represent the paddle
-	RED_BLOCK = RED, // WHITE color code will represent the paddle
+	PADDLE = MAGENTA,
+	RED_BLOCK = RED,
 	BLUE_BLOCK = BLUE,
 	GREEN_BLOCK = GREEN,
 	EMPTY = 0, // A tile not occupied by the ball, paddle, or a block
@@ -90,7 +90,7 @@ typedef enum {
 #define WIDTH 60
 #define HEIGHT 36
 
-// Strings for the footer at the top of the game board.
+// Strings for the footer at the bottom of the game board.
 const char *TITLE = "ASCII BREAKOUT";
 const char *LIVES_FOOTER = "<3:";
 const char *LEVEL_FOOTER = "Level:";
@@ -102,7 +102,7 @@ const int FOOTER_YPOS = HEIGHT + 2;
 // The amount of lives the player starts out with at the beginning of the game.
 const int STARTING_LIVES = 5;
 
-// 2D array representing the play field. Reset after each level.
+// 2D array representing the play field. Randomly generated on each level.
 Tile board[WIDTH][HEIGHT];
 
 void bar(int x, int y, int len, char c);
@@ -112,14 +112,17 @@ void destroyBlock(int x, int y, int *blocksLeft, unsigned int *score);
 void drawTile(int x, int y, Tile t);
 int generateBoard(const int level, const int maxBlockY,
 		Paddle paddle, Ball ball);
-void initializeGraphics(const int level, const unsigned int score,
-		const int lives);
+void initializeGraphics(int level, unsigned int score,
+		int lives);
 int max(int a, int b);
 int min(int a, int b);
 void moveBall(Ball *ball, int x, int y);
 void movePaddle(Paddle *paddle);
 int play(int level, unsigned int *score, int *lives);
 void showMessage(char *fmt, ...);
+void updateLevel(int *level);
+void updateLives(int *lives);
+void updateScore(unsigned int *score);
 void updateTile(int x, int y);
 
 // Draws a horizontal bar across the screen.
@@ -166,7 +169,7 @@ checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 		moveBall(ball, nextX, nextY);
 	// otherwise, bounce!
 	// if stuck in a corner, invert both directions
-	} else if ((*ball).y == 0 && ((*ball).x == 0 || (*ball).x == WIDTH - 1)) {
+	} else if (nextY == 0 && (nextX == 0 || nextX == WIDTH - 1)) {
 		(*ball).xDirection = -(*ball).xDirection;
 		(*ball).yDirection = -(*ball).yDirection;
 	// bounce off the side walls
@@ -196,11 +199,12 @@ checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 			(*ball).yDirection = -(*ball).yDirection;
 	}
 	
+	// Indicates that the ball did not hit the bottom of the play field.
 	return 1;
 }
 
 // Destroys a block at board[x][y], and replaces it with EMPTY. Intended to
-// be called upon the ball bouncing into a block.
+// be called when the ball bounces into a block.
 void
 destroyBlock(int x, int y, int *blocksLeft, unsigned int *score)
 {
@@ -221,13 +225,7 @@ destroyBlock(int x, int y, int *blocksLeft, unsigned int *score)
 	(*blocksLeft)--;
 	// Give the player points for destroying a block.
 	*score += 10;
-	// Update the score.
-	locate(FOOTER_XPOS + strlen(TITLE) + strlen(LIVES_FOOTER) +
-			strlen(LEVEL_FOOTER) + (INBETWEEN * 3), FOOTER_YPOS);
-	setColor(LIGHTCYAN);
-	printf("%s", SCORE_FOOTER);
-	resetColor();
-	printf("%08u\n", *score);
+	updateScore(score);
 }
 
 // Draws at (x, y) [on the terminal window] the proper value depending on the
@@ -308,7 +306,7 @@ generateBoard(const int level, const int maxBlockY, Paddle paddle, Ball ball)
 // Draws initial graphics for the game. This includes a box around the playing
 // field, the score, the paddle, the blocks, etc.
 void
-initializeGraphics(const int level, const unsigned int score, const int lives)
+initializeGraphics(int level, unsigned int score, int lives)
 {
 	cls();
 	// Draws a box around the game field.
@@ -329,25 +327,11 @@ initializeGraphics(const int level, const unsigned int score, const int lives)
 	setColor(CYAN);
 	printf("%s", TITLE);
 	// lives
-	locate(FOOTER_XPOS + strlen(TITLE) + INBETWEEN, FOOTER_YPOS);
-	setColor(LIGHTMAGENTA);
-	printf("%s", LIVES_FOOTER);
-	resetColor();
-	printf("%02d\n", lives);
+	updateLives(&lives);
 	// level
-	locate(FOOTER_XPOS + strlen(TITLE) + strlen(LIVES_FOOTER) +
-			(INBETWEEN * 2), FOOTER_YPOS);
-	setColor(YELLOW);
-	printf("%s", LEVEL_FOOTER);
-	resetColor();
-	printf("%02d\n", level);
+	updateLevel(&level);
 	// score
-	locate(FOOTER_XPOS + strlen(TITLE) + strlen(LIVES_FOOTER) +
-			strlen(LEVEL_FOOTER) + (INBETWEEN * 3), FOOTER_YPOS);
-	setColor(LIGHTCYAN);
-	printf("%s", SCORE_FOOTER);
-	resetColor();
-	printf("%08u\n", score);
+	updateScore(&score);
 	// Draws the board tiles.
 	// i and j refer to y and x so that blocks are drawn in rows, not columns.
 	// This makes it easier to produce the two-character wide block effect.
@@ -484,6 +468,10 @@ play(int level, unsigned int *score, int *lives)
 		// Counts how many frames of gameplay have taken place so far.
 		unsigned int frame = 0;
 
+		// when the game is paused, the ball freezes and gameplay-related input
+		// is frozen.
+		int isPaused = 0;
+
 		// The ball resets at the start of each life.
 		ball.x = WIDTH / 2;
 		ball.y = (maxBlockY + paddle.y) / 2;
@@ -525,28 +513,22 @@ play(int level, unsigned int *score, int *lives)
 			// There is no default case because I want the paddle to continue to
 			// move even if there is no input.
 			switch (nb_getch()) {
-				// A freeze feature which I removed in development because I
-				// thought it made the game too easy. I might add it back at
-				// some point.
-				//case 'f': // freeze/unfreeze the paddle in its place
-				//case 'F':
-				//	if (paddle.lastDirection == 0) { // freeze
-				//		paddle.lastDirection = paddle.direction;
-				//		paddle.direction = 0;
-				//	} else {
-				//		paddle.direction = paddle.lastDirection;
-				//		paddle.lastDirection = 0;
-				//	}
-				//	break;
+			case 'p':
+			case 'P':
+				isPaused = !isPaused;
 			case 'j': // move the paddle left
 			case 'J':
-				paddle.direction = -1;
-				paddle.lastDirection = 0;
+				if (!isPaused) {
+					paddle.direction = -1;
+					paddle.lastDirection = 0;
+				}
 				break;
 			case 'k': // move the paddle right
 			case 'K':
-				paddle.direction = 1;
-				paddle.lastDirection = 0;
+				if (!isPaused) {
+					paddle.direction = 1;
+					paddle.lastDirection = 0;
+				}
 				break;
 			case 'q': // quits the game.
 			case 'Q':
@@ -558,7 +540,8 @@ play(int level, unsigned int *score, int *lives)
 				break;
 			}
 
-			if (paddle.direction != 0 && frame % paddle.velocity == 0) {
+			if (!isPaused &&
+					paddle.direction != 0 && frame % paddle.velocity == 0) {
 				movePaddle(&paddle);
 			}
 
@@ -568,7 +551,7 @@ play(int level, unsigned int *score, int *lives)
 			locate(1000, 1000);
 			fflush(stdout);
 
-			if (!checkBall(&ball, &blocksLeft, score, frame)) {
+			if (!isPaused && !checkBall(&ball, &blocksLeft, score, frame)) {
 				(*lives)--;
 				break; // breaks out of input loop
 			}
@@ -658,6 +641,40 @@ showMessage(char *fmt, ...)
 	} // for(...)
 
 	va_end(ap);
+}
+
+// Updates the level counter in the footer.
+void
+updateLevel(int *level)
+{
+	locate(FOOTER_XPOS + strlen(TITLE) + strlen(LIVES_FOOTER) +
+			(INBETWEEN * 2), FOOTER_YPOS);
+	setColor(YELLOW);
+	printf("%s", LEVEL_FOOTER);
+	resetColor();
+	printf("%02d\n", *level);
+}
+
+// Updates the lives counter in the footer.
+void
+updateLives(int *lives)
+{
+	locate(FOOTER_XPOS + strlen(TITLE) + INBETWEEN, FOOTER_YPOS);
+	setColor(LIGHTMAGENTA);
+	printf("%s", LIVES_FOOTER);
+	resetColor();
+	printf("%02d\n", *lives);
+}
+
+// Updates the score counter in the footer.
+void updateScore(unsigned int *score)
+{
+	locate(FOOTER_XPOS + strlen(TITLE) + strlen(LIVES_FOOTER) +
+			strlen(LEVEL_FOOTER) + (INBETWEEN * 3), FOOTER_YPOS);
+	setColor(LIGHTCYAN);
+	printf("%s", SCORE_FOOTER);
+	resetColor();
+	printf("%08u\n", *score);
 }
 
 // Redraws the tile at board[x][y] in the window. No bounds-checking is done
