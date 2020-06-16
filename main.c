@@ -692,7 +692,7 @@ main(int argc, char *argv[])
 	srand(time(NULL));
 	setCursorVisibility(0);
 
-	int level = 1;
+	int level = (argc > 1) ? atoi(argv[1]) : 1;
 	unsigned int score = 0;
 	int lives = STARTING_LIVES;
 
