@@ -26,6 +26,7 @@
  * <https://github.com/smlavine/ascii-breakout>
  */
 
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,6 +109,7 @@ Tile board[WIDTH][HEIGHT];
 void bar(int x, int y, int len, char c);
 int checkBall(Ball *ball, int *blocksLeft, unsigned int *score,
 		unsigned int frame);
+void cleanup(int sig);
 void destroyBlock(int x, int y, int *blocksLeft, unsigned int *score);
 void drawTile(int x, int y, Tile t);
 int generateBoard(const int level, const int maxBlockY,
@@ -201,6 +203,19 @@ checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 	
 	// Indicates that the ball did not hit the bottom of the play field.
 	return 1;
+}
+
+// Intercepts signals, particularly ^C SIGINT.
+void
+cleanup(int sig)
+{
+	// Clean up the modifications made to the terminal settings before
+	// quitting the program.
+	setCursorVisibility(1);
+	resetColor();
+	locate(1, HEIGHT + 3);
+
+	exit(EXIT_SUCCESS);
 }
 
 // Destroys a block at board[x][y], and replaces it with EMPTY. Intended to
@@ -692,6 +707,8 @@ main(int argc, char *argv[])
 	srand(time(NULL));
 	setCursorVisibility(0);
 
+	signal(SIGINT, cleanup);
+
 	int level = (argc > 1) ? atoi(argv[1]) : 1;
 	unsigned int score = 0;
 	int lives = STARTING_LIVES;
@@ -707,9 +724,9 @@ main(int argc, char *argv[])
 	showMessage("Game over!\nScore: %d\nLevel: %d\nPress any key to quit.",
 			score, level);
 	anykey(NULL);
+	
+	cleanup(0);
 
-	setCursorVisibility(1);
-	resetColor();
-	locate(1, HEIGHT + 3);
+	return 0; // Shouldn't be reached because of cleanup, but is good anyway
 }
 
