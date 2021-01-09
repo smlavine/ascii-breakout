@@ -562,8 +562,9 @@ play(int level, unsigned int *score, int *lives)
 
 			// I move the cursor out of the way so that inputs that are not
 			// caught by nb_getch) are not in the way of the play field.
-			//locate(WIDTH + 3, HEIGHT + 3);
-			locate(1000, 1000);
+			locate(WIDTH + 3, HEIGHT + 3);
+			// Block the input characters from showing.
+			setString("  ");
 			fflush(stdout);
 
 			if (!isPaused && !checkBall(&ball, &blocksLeft, score, frame)) {
