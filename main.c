@@ -204,8 +204,6 @@ cleanup(int sig)
 	setCursorVisibility(1);
 	resetColor();
 	locate(1, HEIGHT + 3);
-
-	exit(EXIT_SUCCESS);
 }
 
 // Destroys a block at board[x][y], and replaces it with EMPTY. Intended to
@@ -718,6 +716,6 @@ main(int argc, char *argv[])
 	
 	cleanup(0);
 
-	return 0; // Shouldn't be reached because of cleanup, but is good anyway
+	return 0;
 }
 
