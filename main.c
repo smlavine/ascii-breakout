@@ -25,9 +25,9 @@
 
 /* Rogueutil is a small library which provides simple color and cursor
  * manipulation functions for TUI programs. I am using it to make it easier to
- * move characters around the screen, without having to print a line to send new
- * output. It is based on, and contains several elements from, Tapio Vierros'
- * library "rlutil". Copyright (C) 2020 Sergei Akhmatdinov.
+ * move characters around the screen, without having to print a line to send
+ * new output. It is based on, and contains several elements from, Tapio
+ * Vierros' library "rlutil". Copyright (C) 2020 Sergei Akhmatdinov.
  * The source code can be found here: <https://github.com/sakhmatd/rogueutil>
  */
 #include "rogueutil.h"
@@ -507,16 +507,16 @@ play(int level, unsigned int *score, int *lives)
 
 		// This is the main game loop. Input is interpreted, tiles move, etc.
 		for (;;) {
-			// Controls the speed of the game; speed of the ball and the paddle,
-			// mainly. Changing this value will also require changing the
-			// various velocities of the ball and paddle for gameplay to
+			// Controls the speed of the game; speed of the ball and the
+			// paddle, mainly. Changing this value will also require changing
+			// the various velocities of the ball and paddle for gameplay to
 			// remain smooth.
 			int sleepLength = 5;
 			msleep(sleepLength);
 			frame++;
 
-			// There is no default case because I want the paddle to continue to
-			// move even if there is no input.
+			// There is no default case because I want the paddle to continue
+			// to move even if there is no input.
 			switch (nb_getch()) {
 			case 'p':
 			case 'P':
