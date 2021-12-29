@@ -73,7 +73,7 @@ typedef enum {
 	GREEN_BLOCK = GREEN,
 	EMPTY = 0, // A tile not occupied by the ball, paddle, or a block
 } Tile;
- 
+
 
 // Dimensions of the play field.
 // I used #define instead of const int for these so that I can declare board
@@ -144,7 +144,7 @@ checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 	if (frame % (*ball).yVelocity == 0) {
 		nextY += (*ball).yDirection;
 	}
-	
+
 	// Don't do anything if the ball didn't change position.
 	if (nextX == (*ball).x && nextY == (*ball).y) {
 		return 1;
@@ -190,7 +190,7 @@ checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 		if (rand() % 2 == 0)
 			(*ball).yDirection = -(*ball).yDirection;
 	}
-	
+
 	// Indicates that the ball did not hit the bottom of the play field.
 	return 1;
 }
@@ -448,7 +448,7 @@ play(int level, unsigned int *score, int *lives)
 
 	// Generates a new board for this level.
 	int blocksLeft = generateBoard(level, maxBlockY, paddle, ball);
-	
+
 	// A message is printed at the screen at the start of each level/life. It
 	// is slightly different if you are not on level 1.
 	char *message;
@@ -559,7 +559,7 @@ play(int level, unsigned int *score, int *lives)
 				(*lives)--;
 				break; // breaks out of input loop
 			}
-			
+
 			// If there are no blocks remaining, then the player has won and
 			// moves on to the next level.
 			if (blocksLeft == 0) {
@@ -586,7 +586,7 @@ showMessage(char *fmt, ...)
 	// Copy the fmt string into an array so that strtok() can work with it.
 	char fmtCopy[strlen(fmt) + 1];
 	strcpy(fmtCopy, fmt);
-	
+
 	// This will hold the (formatted) text that will be printed on each line
 	// before it is printed.
 	char line[WIDTH + 1];
@@ -713,7 +713,7 @@ main(int argc, char *argv[])
 	showMessage("Game over!\nScore: %d\nLevel: %d\nPress any key to quit.",
 			score, level);
 	anykey(NULL);
-	
+
 	cleanup(0);
 
 	return 0;
