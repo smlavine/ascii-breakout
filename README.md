@@ -38,7 +38,7 @@ To browse the source code repository, see
 <https://git.sr.ht/~smlavine/ascii-breakout>.
 
 To send patches, keep up with development, read announcements, and brag
-with your high scores, see the mailing list at
+about your high scores, see the mailing list at
 <https://lists.sr.ht/~smlavine/ascii-breakout>.
 
 [0]: https://en.wikipedia.org/wiki/free_software
