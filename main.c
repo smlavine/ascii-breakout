@@ -512,6 +512,7 @@ play(int level, unsigned int *score, int *lives)
 			case 'p':
 			case 'P':
 				isPaused = !isPaused;
+				break;
 			case 'j': // move the paddle left
 			case 'J':
 				if (!isPaused) {
