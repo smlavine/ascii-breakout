@@ -543,8 +543,8 @@ play(int level, unsigned int *score, int *lives)
 				break;
 			}
 
-			if (!isPaused &&
-					paddle.direction != 0 && frame % paddle.velocity == 0) {
+			if (!isPaused && paddle.direction != 0
+					&& frame % paddle.velocity == 0) {
 				movePaddle(&paddle);
 			}
 
