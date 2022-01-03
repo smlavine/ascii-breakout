@@ -633,14 +633,14 @@ play(int level, unsigned int *score, int *lives)
 void
 showMessage(char *fmt, ...)
 {
-	/* Copy the fmt string into an array so that strtok() can work with it.
-	 */
-	char fmtCopy[strlen(fmt) + 1];
-	strcpy(fmtCopy, fmt);
+	char *fmtCopy, *line;
+
+	/* We need to copy fmt because strtok() modifies its first argument. */
+	fmtCopy = strdup(fmt);
 
 	/* This will hold the (formatted) text that will be printed on each
 	 * line before it is printed. */
-	char line[WIDTH + 1];
+	line = malloc(sizeof(*line) * (WIDTH + 1));
 
 	/* Variables to handle the format arguments */
 	int n;
@@ -699,6 +699,8 @@ showMessage(char *fmt, ...)
 	}
 
 	va_end(ap);
+	free(fmtCopy);
+	free(line);
 	fflush(stdout);
 }
 
