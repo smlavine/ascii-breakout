@@ -639,6 +639,7 @@ showMessage(char *fmt, ...)
 	} // for(...)
 
 	va_end(ap);
+	fflush(stdout);
 }
 
 // Updates the level counter in the footer.
