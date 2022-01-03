@@ -23,13 +23,6 @@
 #include <string.h>
 #include <time.h>
 
-/* Rogueutil is a small library which provides simple color and cursor
- * manipulation functions for TUI programs. I am using it to make it easier to
- * move characters around the screen, without having to print a line to send
- * new output. It is based on, and contains several elements from, Tapio
- * Vierros' library "rlutil". Copyright (C) 2020 Sergei Akhmatdinov.
- * The source code can be found here: <https://github.com/sakhmatd/rogueutil>
- */
 #include "rogueutil.h"
 
 // Store data about the ball, including location and velocity.
