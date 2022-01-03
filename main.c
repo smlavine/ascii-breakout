@@ -78,7 +78,7 @@ typedef enum {
 	RED_BLOCK = RED,
 	BLUE_BLOCK = BLUE,
 	GREEN_BLOCK = GREEN,
-	EMPTY = 0, /* A tile not occupied by the ball, paddle, or a block. */
+	EMPTY = 0,
 } Tile;
 
 
@@ -193,10 +193,9 @@ checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 		 * roll about on the paddle for a little bit, which is actually
 		 * kindof fun. Try it out if you're bored. */
 		(*ball).yDirection = -(*ball).yDirection;
-		/* randomize bounce a bit */
+		/* randomize bounce and velocity */
 		if (rand() % 2 == 0)
 			(*ball).xDirection = -(*ball).xDirection;
-		/* randomize velocity */
 		(*ball).xVelocity = (rand() % 8) + 5;
 		(*ball).yVelocity = (rand() % 8) + 5;
 	/* bounce off (and destroy) block */
@@ -614,14 +613,14 @@ play(int level, unsigned int *score, int *lives)
 				return 1;
 			}
 
-		} /* for (;;) (input loop) */
+		}
 
 		/* if the player has ran out of lives, then the game is over.
 		 */
 		if (*lives <= 0) {
 			return 0;
 		}
-	} /* life loop */
+	}
 
 	return 1; /* indicates that the player has not ran out of lives */
 }
@@ -692,12 +691,12 @@ showMessage(char *fmt, ...)
 				line[strlen(line)] = *token;
 				break;
 			}
-		} /* while (*token) */
+		}
 
 		locate(WIDTH / 2 - strlen(line) / 2, HEIGHT / 2 + lineNumber);
 		printf("%s", line);
 
-	} /* for(...) */
+	}
 
 	va_end(ap);
 	fflush(stdout);
