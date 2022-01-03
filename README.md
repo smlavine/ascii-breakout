@@ -5,8 +5,8 @@ It uses text-based graphics and can be played in a terminal.
 
 I originally wrote this in 2020 for my final portfolio project in AP
 Computer Science Principles, when I was in 11th grade. Since then, I've
-sanded off a few rough edges: writing this README, refactoring,
-improving documentation, etc.
+sanded off a few rough edges: wrote this README, refactored, improved
+documentation, etc.
 
 ## Build
 
