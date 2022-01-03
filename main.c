@@ -152,8 +152,7 @@ int
 checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
 {
 	/* The new coordinates of the ball, if it moves successfully. */
-	int nextX = (*ball).x,
-		nextY = (*ball).y;
+	int nextX = (*ball).x, nextY = (*ball).y;
 
 
 	if (frame % (*ball).xVelocity == 0) {
