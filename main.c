@@ -28,7 +28,7 @@
 /*
  * Store data about the ball, including location and velocity.
  */
-typedef struct {
+struct ball {
 	/* Coordinates of the ball in board. */
 	int x;
 	int y;
@@ -44,12 +44,12 @@ typedef struct {
 	 * moves in that axis. */
 	int xDirection; /* negative is left, positive is right. */
 	int yDirection; /* negative is up, positive is down. */
-} Ball;
+};
 
 /*
  * Store data about the paddle, including location and direction.
  */
-typedef struct {
+struct paddle {
 	/* Coordinates (in board) of the left-most character in the paddle. */
 	int x;
 	int y;
@@ -66,20 +66,20 @@ typedef struct {
 
 	/* used to control speed of the paddle */
 	int velocity;
-} Paddle;
+};
 
 /*
  * Stores data about each tile (character space) on the board, namely, what it
  * represents.
  */
-typedef enum {
+enum tile {
 	BALL = 'O',
 	PADDLE = MAGENTA,
 	RED_BLOCK = RED,
 	BLUE_BLOCK = BLUE,
 	GREEN_BLOCK = GREEN,
 	EMPTY = 0,
-} Tile;
+};
 
 
 /*
@@ -108,22 +108,22 @@ const int STARTING_LIVES = 5;
 /*
  * 2D array representing the play field. Randomly generated on each level.
  */
-Tile board[WIDTH][HEIGHT];
+enum tile board[WIDTH][HEIGHT];
 
 void bar(int x, int y, int len, char c);
-int checkBall(Ball *ball, int *blocksLeft, unsigned int *score,
+int checkBall(struct ball *ball, int *blocksLeft, unsigned int *score,
 		unsigned int frame);
 void cleanup(int sig);
 void destroyBlock(int x, int y, int *blocksLeft, unsigned int *score);
-void drawTile(int x, int y, Tile t);
+void drawTile(int x, int y, enum tile t);
 int generateBoard(const int level, const int maxBlockY,
-		Paddle paddle, Ball ball);
+		struct paddle paddle, struct ball ball);
 void initializeGraphics(int level, unsigned int score,
 		int lives);
 int max(int a, int b);
 int min(int a, int b);
-void moveBall(Ball *ball, int x, int y);
-void movePaddle(Paddle *paddle);
+void moveBall(struct ball *ball, int x, int y);
+void movePaddle(struct paddle *paddle);
 int play(int level, unsigned int *score, int *lives);
 void showMessage(char *fmt, ...);
 void updateLevel(int *level);
@@ -149,7 +149,8 @@ bar(int x, int y, int len, char c)
  * the ball reaches the bottom of the play field, otherwise returns 1.
  */
 int
-checkBall(Ball *ball, int *blocksLeft, unsigned int *score, unsigned int frame)
+checkBall(struct ball *ball, int *blocksLeft, unsigned int *score,
+		unsigned int frame)
 {
 	/* The new coordinates of the ball, if it moves successfully. */
 	int nextX = (*ball).x, nextY = (*ball).y;
@@ -257,7 +258,7 @@ destroyBlock(int x, int y, int *blocksLeft, unsigned int *score)
  * tile, including the proper color. Does not reset colors after usage.
  */
 void
-drawTile(int x, int y, Tile t)
+drawTile(int x, int y, enum tile t)
 {
 	/* alternates the character drawn for blocks */
 	static int alternateBlockChar = 1;
@@ -293,10 +294,11 @@ drawTile(int x, int y, Tile t)
  * in the level.
  */
 int
-generateBoard(const int level, const int maxBlockY, Paddle paddle, Ball ball)
+generateBoard(const int level, const int maxBlockY, struct paddle paddle,
+		struct ball ball)
 {
 	/* Initializes the board to be empty */
-	memset(board, EMPTY, WIDTH * HEIGHT * sizeof(Tile));
+	memset(board, EMPTY, WIDTH * HEIGHT * sizeof(enum tile));
 	/* Create the paddle. */
 	for (int i = 0; i < paddle.len; i++) {
 		board[paddle.x + i][paddle.y] = PADDLE;
@@ -397,7 +399,7 @@ min(int a, int b)
  * Moves the ball to board[x][y].
  */
 void
-moveBall(Ball *ball, int x, int y)
+moveBall(struct ball *ball, int x, int y)
 {
 	board[(*ball).x][(*ball).y] = EMPTY;
 	updateTile((*ball).x, (*ball).y);
@@ -411,7 +413,7 @@ moveBall(Ball *ball, int x, int y)
  * Move the paddle according to its direction.
  */
 void
-movePaddle(Paddle *paddle)
+movePaddle(struct paddle *paddle)
 {
 	/* The x-coordinate (in board) of which tiles are going to be changed.
 	 */
@@ -457,7 +459,7 @@ play(int level, unsigned int *score, int *lives)
 	 * of the height of the board. */
 	const int maxBlockY = (HEIGHT / 3) + min(level / 2, HEIGHT / 2);
 
-	Paddle paddle;
+	struct paddle paddle;
 	/* The paddle gets shorter as the game goes on. */
 	paddle.len = max(20 - (2 * (level / 3)), 10);
 	paddle.x = (WIDTH - paddle.len) / 2;
@@ -466,7 +468,7 @@ play(int level, unsigned int *score, int *lives)
 	paddle.lastDirection = 0;
 	paddle.velocity = 4;
 
-	Ball ball;
+	struct ball ball;
 	ball.x = WIDTH / 2;
 	ball.y = (maxBlockY + paddle.y) / 2;
 
