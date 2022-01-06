@@ -633,8 +633,8 @@ play(int level, unsigned int *score, int *lives)
 void
 showMessage(char *fmt, ...)
 {
-	char buffer[WIDTH * HEIGHT];
 	va_list ap;
+	char buffer[WIDTH * HEIGHT];
 	int line_number;
 	char *line;
 
