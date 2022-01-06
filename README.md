@@ -44,4 +44,4 @@ about your high scores, see the mailing list at
 [0]: https://en.wikipedia.org/wiki/free_software
 [1]: https://git.sr.ht/~smlavine/ascii-breakout/tree/master/item/LICENSE
 [2]: https://choosealicense.com/licenses/gpl-3.0/
-[3]: https://git.sr.ht/~smlavine/ascii-breakout/tree/master/item/LICENSE.rogueutil
+[3]: https://git.sr.ht/~smlavine/ascii-breakout/tree/master/item/apache.txt
