@@ -449,7 +449,7 @@ movePaddle(struct paddle *paddle)
 
 /*
  * Plays a level of the game. Returns the amount of lives remaining at the
- * completion of the level, or 0 if the player runs out of lives.
+ * completion of the level.
  */
 int
 play(int level, unsigned int *score, int *lives)
@@ -612,19 +612,13 @@ play(int level, unsigned int *score, int *lives)
 			/* If there are no blocks remaining, then the player
 			 * has won and moves on to the next level. */
 			if (blocksLeft == 0) {
-				return 1;
+				return *lives;
 			}
 
 		}
-
-		/* if the player has ran out of lives, then the game is over.
-		 */
-		if (*lives <= 0) {
-			return 0;
-		}
 	}
 
-	return 1; /* indicates that the player has not ran out of lives */
+	return *lives;
 }
 
 /*
@@ -714,7 +708,7 @@ main(int argc, char *argv[])
 	unsigned int score = 0;
 	int lives = STARTING_LIVES;
 
-	while (play(level, &score, &lives)) {
+	while (play(level, &score, &lives) > 0) {
 		showMessage("Level %d complete!\nPress any key to continue...", level);
 		anykey(NULL);
 		level++;
