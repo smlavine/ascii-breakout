@@ -633,14 +633,13 @@ play(int level, unsigned int *score, int *lives)
 void
 showMessage(char *fmt, ...)
 {
-	const size_t buffer_len = WIDTH * HEIGHT;
 	char buffer[WIDTH * HEIGHT];
 	va_list ap;
 	int line_number;
 	char *line;
 
 	va_start(ap, fmt);
-	vsnprintf(buffer, buffer_len, fmt, ap);
+	vsnprintf(buffer, sizeof(buffer) / sizeof(*buffer), fmt, ap);
 	va_end(ap);
 
 	for (line_number = 0, line = strtok(buffer, "\n"); line != NULL;
