@@ -628,81 +628,27 @@ play(int level, unsigned int *score, int *lives)
 }
 
 /*
- * Prints the message in the arguments, formatting it similar to printf,
- * however only accepting/recognizing "%d", "%s", and "%c" as valid arguments.
- * The lines will be properly centered on the screen.
+ * Displays a printf(3)-formatted message, centered on the playfield.
  */
 void
 showMessage(char *fmt, ...)
 {
-	char *fmtCopy, *line;
-
-	/* We need to copy fmt because strtok() modifies its first argument. */
-	fmtCopy = strdup(fmt);
-
-	/* This will hold the (formatted) text that will be printed on each
-	 * line before it is printed. */
-	line = malloc(sizeof(*line) * (WIDTH + 1));
-
-	/* Variables to handle the format arguments */
-	int n;
-	char *s;
+	const size_t buffer_len = WIDTH * HEIGHT;
+	char buffer[WIDTH * HEIGHT];
 	va_list ap;
+	int line_number;
+	char *line;
+
 	va_start(ap, fmt);
+	vsnprintf(buffer, buffer_len, fmt, ap);
+	va_end(ap);
 
-	char *token = strtok(fmtCopy, "\n");
-	for (int lineNumber = 0; token != NULL;
-			lineNumber++, token = strtok(NULL, "\n")) {
-		memset(line, 0, WIDTH + 1);
-
-		/* Count how many printf arguments there are in the current
-		 * line. */
-		int argamt = 0;
-		for (int i = 0; i < strlen(token) - 1; i++) {
-			if (token[i] == '%' && token[i + 1] != '%') {
-				argamt++;
-			}
-		}
-		/* while the value at *token is not '\0' (the end of the
-		 * string) */
-		for (; *token; token++) {
-			switch(*token) {
-			case '%':
-				/* if a percentage is found, look for
-				 * arguments. */
-				switch (*++token) {
-				case 'd':
-					n = va_arg(ap, int);
-					sprintf(line + strlen(line), "%d", n);
-					break;
-				case 's':
-					s = va_arg(ap, char *);
-					sprintf(line + strlen(line), "%s", s);
-					break;
-				case 'c':
-					n = va_arg(ap, int);
-					sprintf(line + strlen(line), "%c", n);
-					break;
-				case '%':
-				default:
-					line[strlen(line)] = *token;
-					break;
-				}
-				break;
-			default:
-				line[strlen(line)] = *token;
-				break;
-			}
-		}
-
-		locate(WIDTH / 2 - strlen(line) / 2, HEIGHT / 2 + lineNumber);
-		printf("%s", line);
-
+	for (line_number = 0, line = strtok(buffer, "\n"); line != NULL;
+			line_number++, line = strtok(NULL, "\n")) {
+		locate(WIDTH / 2 - strlen(line) / 2, HEIGHT / 2 + line_number);
+		fputs(line, stdout);
 	}
 
-	va_end(ap);
-	free(fmtCopy);
-	free(line);
 	fflush(stdout);
 }
 
