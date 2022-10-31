@@ -1,4 +1,4 @@
-# ascii-breakout
+# [ascii-breakout](https://sr.ht/~smlavine/ascii-breakout)
 
 ascii-breakout is a game inspired by Atari's 1976 classic, _Breakout_.
 It uses text-based graphics and can be played in a terminal.
